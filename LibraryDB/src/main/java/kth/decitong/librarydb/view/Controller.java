@@ -108,9 +108,11 @@ public class Controller {
     public static void fetchAllAuthors(TableView<Author> authorTable) {
         new Thread(() -> {
             try {
+                System.out.print("fetching");
                 List<Author> authors = booksDb.getAllAuthors();
                 Platform.runLater(() ->
                         authorTable.setItems(FXCollections.observableArrayList(authors)));
+                System.out.print("fetched");
             } catch (Exception e) {
                 Platform.runLater(() ->
                         booksView.showAlertAndWait("Error fetching authors from database", ERROR));

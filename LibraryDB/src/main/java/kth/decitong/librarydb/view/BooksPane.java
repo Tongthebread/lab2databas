@@ -1,6 +1,7 @@
 package kth.decitong.librarydb.view;
 
 import javafx.application.Platform;
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -95,12 +96,13 @@ public class BooksPane extends VBox {
         TableColumn<Book, Integer> ratingCol = new TableColumn<>("Rating");
         TableColumn<Book, Genre> genreCol = new TableColumn<>("Genre");
 
-        titleCol.setCellValueFactory(new PropertyValueFactory<>("title"));
-        bookIDCol.setCellValueFactory(new PropertyValueFactory<>("bookId"));
-        isbnCol.setCellValueFactory(new PropertyValueFactory<>("isbn"));
-        publishedCol.setCellValueFactory(new PropertyValueFactory<>("published"));
-        ratingCol.setCellValueFactory(new PropertyValueFactory<>("rating"));
-        genreCol.setCellValueFactory(new PropertyValueFactory<>("genre"));
+        titleCol.setCellValueFactory(cellData -> new ReadOnlyStringWrapper(cellData.getValue().getTitle()));
+        bookIDCol.setCellValueFactory(cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().getBookId()));
+        isbnCol.setCellValueFactory(cellData -> new ReadOnlyStringWrapper(cellData.getValue().getIsbn()));
+        publishedCol.setCellValueFactory(cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().getPublished()));
+        ratingCol.setCellValueFactory(cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().getRating()));
+        genreCol.setCellValueFactory(cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().getGenre()));
+
 
         authorCol.setCellValueFactory(cellData -> {
             List<Author> authors = cellData.getValue().getAuthors();
@@ -342,10 +344,11 @@ public class BooksPane extends VBox {
         TableColumn<Author, String> lastNameCol = new TableColumn<>("Last Name");
         TableColumn<Author, Date> birthDateCol = new TableColumn<>("Birth Date");
 
-        idCol.setCellValueFactory(new PropertyValueFactory<>("authorID"));
-        firstNameCol.setCellValueFactory(new PropertyValueFactory<>("firstName"));
-        lastNameCol.setCellValueFactory(new PropertyValueFactory<>("lastName"));
-        birthDateCol.setCellValueFactory(new PropertyValueFactory<>("birthDate"));
+        idCol.setCellValueFactory(cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().getAuthorID()));
+        firstNameCol.setCellValueFactory(cellData -> new ReadOnlyStringWrapper(cellData.getValue().getFirstName()));
+        lastNameCol.setCellValueFactory(cellData -> new ReadOnlyStringWrapper(cellData.getValue().getLastName()));
+        birthDateCol.setCellValueFactory(cellData -> new ReadOnlyObjectWrapper<>(cellData.getValue().getBirthDate()));
+
 
         authorTable.getColumns().addAll(idCol, firstNameCol, lastNameCol, birthDateCol);
         Controller.fetchAllAuthors(authorTable);

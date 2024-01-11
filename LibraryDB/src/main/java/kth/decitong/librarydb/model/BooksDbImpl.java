@@ -10,16 +10,14 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
 /**
  * A mock implementation of the BooksDBInterface interface to demonstrate how to
@@ -64,249 +62,341 @@ public class BooksDbImpl implements BooksDbInterface {
     }
 
     @Override
-    public List<Book> searchBooksByTitle(String title) throws BooksDbException {
-        List<Book> books = new ArrayList<>();
-        try {
-            // Search for books with a title that matches the provided string
-            FindIterable<Document> iterable = database.getCollection("books")
-                    .find(Filters.eq("title", title));
+    public ArrayList<Book> searchBooksByTitle(String title) throws BooksDbException {
+        ArrayList<Book> matchingBooks = new ArrayList<>();
 
-            for (Document doc : iterable) {
-                books.add(documentToBook(doc));
+        try {
+            // Query to find books with a title matching the search string
+            Pattern titlePattern = Pattern.compile(title, Pattern.CASE_INSENSITIVE);
+            FindIterable<Document> foundBooks = database.getCollection("books")
+                    .find(Filters.regex("title", titlePattern));
+
+            for (Document bookDoc : foundBooks) {
+                Book book = documentToBook(bookDoc); // Convert Document to Book
+
+                // Fetch and add authors to the book
+                List<Integer> authorIds = bookDoc.getList("authors", Integer.class);
+                for (int authorId : authorIds) {
+                    Document authorDoc = database.getCollection("authors").find(Filters.eq("authorID", authorId)).first();
+                    if (authorDoc != null) {
+                        Author author = documentToAuthor(authorDoc); // Convert Document to Author
+                        book.addAuthors(author);
+                    }
+                }
+
+                matchingBooks.add(book);
             }
         } catch (MongoException e) {
-            throw new BooksDbException("Error searching books by title: " + e.getMessage(), e);
+            throw new BooksDbException("Error searching for books by title in MongoDB: " + e.getMessage(), e);
         }
-        return books;
-    }
 
+        return matchingBooks;
+    }
     @Override
     public ArrayList<Book> searchBooksByAuthor(String authorName) throws BooksDbException {
-        ArrayList<Book> books = new ArrayList<>();
+        ArrayList<Book> matchingBooks = new ArrayList<>();
+
         try {
-            // Split the author name into first and last names for searching
-            String[] nameParts = authorName.split(" ");
-            String firstName = nameParts[0];
-            String lastName = (nameParts.length > 1) ? nameParts[1] : "";
+            // First, find the authors matching the name
+            Pattern namePattern = Pattern.compile(authorName, Pattern.CASE_INSENSITIVE);
+            FindIterable<Document> foundAuthors = database.getCollection("authors")
+                    .find(Filters.or(Filters.regex("firstName", namePattern), Filters.regex("lastName", namePattern)));
 
-            // Find the author's documents
-            FindIterable<Document> authors = database.getCollection("authors")
-                    .find(Filters.and(Filters.eq("firstName", firstName), Filters.eq("lastName", lastName)));
+            List<Integer> authorIds = new ArrayList<>();
+            for (Document author : foundAuthors) {
+                authorIds.add(author.getInteger("authorID"));
+            }
 
-            for (Document authorDoc : authors) {
-                int authorID = authorDoc.getInteger("authorID");
+            // Then, find the books that have these author IDs
+            if (!authorIds.isEmpty()) {
+                FindIterable<Document> foundBooks = database.getCollection("books")
+                        .find(Filters.in("authors", authorIds));
 
-                // Find books written by this author
-                FindIterable<Document> bookDocs = database.getCollection("books")
-                        .find(Filters.eq("authorIDs", authorID));
+                // Convert documents to Book objects and add authors
+                for (Document bookDoc : foundBooks) {
+                    Book book = documentToBook(bookDoc); // Convert Document to Book
 
-                for (Document bookDoc : bookDocs) {
-                    books.add(documentToBook(bookDoc));
+                    // Fetch and add authors to the book
+                    List<Integer> bookAuthorIds = bookDoc.getList("authors", Integer.class);
+                    for (int authorId : bookAuthorIds) {
+                        Document authorDoc = database.getCollection("authors").find(Filters.eq("authorID", authorId)).first();
+                        if (authorDoc != null) {
+                            Author author = documentToAuthor(authorDoc); // Convert Document to Author
+                            book.addAuthors(author);
+                        }
+                    }
+
+                    matchingBooks.add(book);
                 }
             }
         } catch (MongoException e) {
-            throw new BooksDbException("Error searching books by author: " + e.getMessage(), e);
+            throw new BooksDbException("Error searching for books by author in MongoDB: " + e.getMessage(), e);
         }
-        return books;
-    }
 
+        return matchingBooks;
+    }
     @Override
     public ArrayList<Book> searchBooksByGenre(String genre) throws BooksDbException {
-        ArrayList<Book> books = new ArrayList<>();
+        ArrayList<Book> matchingBooks = new ArrayList<>();
+
         try {
-            // Convert the genre string to an enum (assuming Genre is an enum in your model)
-            Genre genreEnum;
-            try {
-                genreEnum = Genre.valueOf(genre.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                throw new BooksDbException("Invalid genre: " + genre, e);
-            }
+            // Convert the input genre to uppercase to match the database format
+            String uppercaseGenre = genre.toUpperCase();
 
-            // Search for books with the specified genre
-            FindIterable<Document> iterable = database.getCollection("books")
-                    .find(Filters.eq("genre", genreEnum.toString()));
+            // Query to find books with the specified uppercase genre
+            FindIterable<Document> foundBooks = database.getCollection("books")
+                    .find(Filters.eq("genre", uppercaseGenre));
 
-            for (Document doc : iterable) {
-                books.add(documentToBook(doc));
+            for (Document bookDoc : foundBooks) {
+                Book book = documentToBook(bookDoc); // Convert Document to Book
+
+                // Fetch and add authors to the book
+                List<Integer> authorIds = bookDoc.getList("authors", Integer.class);
+                for (int authorId : authorIds) {
+                    Document authorDoc = database.getCollection("authors").find(Filters.eq("authorID", authorId)).first();
+                    if (authorDoc != null) {
+                        Author author = documentToAuthor(authorDoc); // Convert Document to Author
+                        book.addAuthors(author);
+                    }
+                }
+
+                matchingBooks.add(book);
             }
         } catch (MongoException e) {
-            throw new BooksDbException("Error searching books by genre: " + e.getMessage(), e);
+            throw new BooksDbException("Error searching for books by genre in MongoDB: " + e.getMessage(), e);
         }
-        return books;
-    }
 
+        return matchingBooks;
+    }
     @Override
     public ArrayList<Book> searchBooksByRating(int rating) throws BooksDbException {
-        ArrayList<Book> books = new ArrayList<>();
-        try {
-            // Validate the rating
-            if (rating < 1 || rating > 5) {
-                throw new IllegalArgumentException("Rating must be between 1 and 5.");
-            }
+        ArrayList<Book> matchingBooks = new ArrayList<>();
 
-            // Search for books with the specified rating
-            FindIterable<Document> iterable = database.getCollection("books")
+        try {
+            // Query to find books with the specified rating
+            FindIterable<Document> foundBooks = database.getCollection("books")
                     .find(Filters.eq("rating", rating));
 
-            for (Document doc : iterable) {
-                books.add(documentToBook(doc));
+            for (Document bookDoc : foundBooks) {
+                Book book = documentToBook(bookDoc); // Convert Document to Book
+
+                // Fetch and add authors to the book
+                List<Integer> authorIds = bookDoc.getList("authors", Integer.class);
+                for (int authorId : authorIds) {
+                    Document authorDoc = database.getCollection("authors").find(Filters.eq("authorID", authorId)).first();
+                    if (authorDoc != null) {
+                        Author author = documentToAuthor(authorDoc); // Convert Document to Author
+                        book.addAuthors(author);
+                    }
+                }
+
+                matchingBooks.add(book);
             }
-        } catch (IllegalArgumentException e) {
-            throw new BooksDbException("Invalid rating: " + e.getMessage(), e);
         } catch (MongoException e) {
-            throw new BooksDbException("Error searching books by rating: " + e.getMessage(), e);
+            throw new BooksDbException("Error searching for books by rating in MongoDB: " + e.getMessage(), e);
         }
-        return books;
+
+        return matchingBooks;
     }
+
+
 
     @Override
     public ArrayList<Book> searchBooksByISBN(String ISBN) throws BooksDbException {
-        ArrayList<Book> books = new ArrayList<>();
+        ArrayList<Book> matchingBooks = new ArrayList<>();
+
         try {
-            // Search for books with the specified ISBN
-            FindIterable<Document> iterable = database.getCollection("books")
+            // Query to find books with the specified ISBN
+            FindIterable<Document> foundBooks = database.getCollection("books")
                     .find(Filters.eq("isbn", ISBN));
 
-            for (Document doc : iterable) {
-                books.add(documentToBook(doc));
+            for (Document bookDoc : foundBooks) {
+                Book book = documentToBook(bookDoc); // Convert Document to Book
+
+                // Fetch and add authors to the book
+                List<Integer> authorIds = bookDoc.getList("authors", Integer.class);
+                for (int authorId : authorIds) {
+                    Document authorDoc = database.getCollection("authors").find(Filters.eq("authorID", authorId)).first();
+                    if (authorDoc != null) {
+                        Author author = documentToAuthor(authorDoc); // Convert Document to Author
+                        book.addAuthors(author);
+                    }
+                }
+
+                matchingBooks.add(book);
             }
         } catch (MongoException e) {
-            throw new BooksDbException("Error searching books by ISBN: " + e.getMessage(), e);
+            throw new BooksDbException("Error searching for books by ISBN in MongoDB: " + e.getMessage(), e);
         }
-        return books;
+
+        return matchingBooks;
     }
 
-    @Override
-    public void deleteBook(int bookID) throws BooksDbException {
-        try {
-            // Delete the book document from the 'books' collection based on bookId
-            DeleteResult result = database.getCollection("books")
-                    .deleteOne(Filters.eq("bookId", bookID));
 
-            if (result.getDeletedCount() == 0) {
-                throw new BooksDbException("Book with ID " + bookID + "not found in database");
+    public void deleteBook(int bookId) throws BooksDbException {
+        try {
+            DeleteResult deleteResult = database.getCollection("books").deleteOne(new Document("bookId", bookId));
+
+            if (deleteResult.getDeletedCount() == 0) {
+                throw new BooksDbException("No book found with bookId: " + bookId);
             }
         } catch (MongoException e) {
-            throw new BooksDbException("Error deleting book from database: " + e.getMessage(), e);
+            throw new BooksDbException("Error deleting book from MongoDB: " + e.getMessage(), e);
         }
     }
 
     @Override
     public void addBook(Book book) throws BooksDbException {
         try {
-            Document bookDoc = new Document()
-                    .append("bookID", book.getBookId())
+            Document bookDocument = new Document("bookId", book.getBookId())
                     .append("isbn", book.getIsbn())
                     .append("title", book.getTitle())
-                    .append("published", book.getPublished()) // assuming getPublished returns a Date in ISO 8601 format
+                    .append("published", book.getPublished())
                     .append("rating", book.getRating())
-                    .append("genre", book.getGenre().toString())
-                    .append("authorIDs", book.getAuthors().stream().map(Author::getAuthorID).collect(Collectors.toList()));
+                    .append("genre", book.getGenre().toString());
 
-            database.getCollection("books").insertOne(bookDoc);
+            database.getCollection("books").insertOne(bookDocument);
         } catch (MongoException e) {
-            throw new BooksDbException("Error adding book to database: " + e.getMessage(), e);
+            throw new BooksDbException("Error adding book to MongoDB: " + e.getMessage(), e);
         }
     }
 
-    @Override
     public void addAuthor(Author author) throws BooksDbException {
+
         try {
-            Document authorDoc = new Document()
-                    .append("authorID", author.getAuthorID())
+            Document authorDocument = new Document("authorID", author.getAuthorID())
                     .append("firstName", author.getFirstName())
                     .append("lastName", author.getLastName())
-                    .append("birthDate", author.getBirthDate()) // assuming getBirthDate returns a Date in ISO 8601 format
-                    .append("bookIDs", new ArrayList<>()); // initially empty, books can be added later
-
-            database.getCollection("authors").insertOne(authorDoc);
+                    .append("birthDate", author.getBirthDate());
+            database.getCollection("authors").insertOne(authorDocument);
         } catch (MongoException e) {
-            throw new BooksDbException("Error adding author to database: " + e.getMessage(), e);
+            throw new BooksDbException("Error adding author to MongoDB: " + e.getMessage(), e);
         }
     }
+
 
     @Override
     public void addAuthorToBook(Author author, Book book) throws BooksDbException {
-        try {
-            // Add author's ID to the book's list of authors
-            UpdateResult updateBookResult = database.getCollection("books")
-                    .updateOne(Filters.eq("bookID", book.getBookId()),
-                            Updates.addToSet("authorIDs", author.getAuthorID()));
+        if (book == null || author == null) {
+            throw new IllegalArgumentException("Book and Author cannot be null");
+        }
 
-            // Add book's ID to the author's list of books
-            UpdateResult updateAuthorResult = database.getCollection("authors")
-                    .updateOne(Filters.eq("authorID", author.getAuthorID()),
-                            Updates.addToSet("bookIDs", book.getBookId()));
+        try {
+            // Create a filter to find the book by its ID
+            Document bookFilter = new Document("bookId", book.getBookId());
+
+            // Create an update operation to add the author's ID to the book's authors list
+            Document updateOperation = new Document("$addToSet", new Document("authors", author.getAuthorID()));
+
+            // Perform the update operation on the books collection
+            UpdateResult updateResult = database.getCollection("books").updateOne(bookFilter, updateOperation);
+
+            if (updateResult.getMatchedCount() == 0) {
+                throw new BooksDbException("No book found with bookId: " + book.getBookId());
+            }
         } catch (MongoException e) {
-            throw new BooksDbException("Error adding author to book in database: " + e.getMessage(), e);
+            throw new BooksDbException("Error adding author to book in MongoDB: " + e.getMessage(), e);
         }
     }
-
 
     @Override
     public List<Author> getAuthorsForBook(int bookID) throws BooksDbException {
         List<Author> authors = new ArrayList<>();
+
         try {
-            // Find the book document by its bookId
-            Document bookDoc = database.getCollection("books").find(Filters.eq("bookId", bookID)).first();
-            if (bookDoc == null) {
-                throw new BooksDbException("Book with ID " + bookID + " not found.");
+            // Find the book document by its ID
+            Document book = database.getCollection("books").find(new Document("bookId", bookID)).first();
+            if (book == null) {
+                throw new BooksDbException("No book found with bookId: " + bookID);
             }
 
-            // Get the list of authorIDs from the book document
-            List<Integer> authorIDs = bookDoc.getList("authorIDs", Integer.class);
+            // Extract the list of author IDs from the book document
+            List<Integer> authorIds = book.getList("authors", Integer.class);
 
-            for (int authorID : authorIDs) {
-                // Fetch each author by their authorID and add to the list
-                Document authorDoc = database.getCollection("authors").find(Filters.eq("authorID", authorID)).first();
+            // For each author ID, find the author document and create an Author object
+            for (Integer authorId : authorIds) {
+                Document authorDoc = database.getCollection("authors").find(new Document("authorID", authorId)).first();
                 if (authorDoc != null) {
-                    authors.add(documentToAuthor(authorDoc));
+                    int authorID = authorDoc.getInteger("authorID");
+                    String firstName = authorDoc.getString("firstName");
+                    String lastName = authorDoc.getString("lastName");
+                    Date birthDate = authorDoc.getDate("birthDate");
+
+                    Author author = new Author(authorID, firstName, lastName, birthDate);
+                    authors.add(author);
                 }
             }
         } catch (MongoException e) {
-            throw new BooksDbException("Error retrieving authors for book: " + e.getMessage(), e);
+            throw new BooksDbException("Error retrieving authors for book from MongoDB: " + e.getMessage(), e);
         }
+
         return authors;
     }
 
-    @Override
     public List<Author> getAllAuthors() throws BooksDbException {
-            List<Author> authors = new ArrayList<>();
-            try {
-                // Retrieve all documents from the 'authors' collection
-                FindIterable<Document> iterable = database.getCollection("authors").find();
-                for (Document doc : iterable) {
-                    authors.add(documentToAuthor(doc));
-                }
-            } catch (MongoException e) {
-                throw new BooksDbException("Error retrieving all authors: " + e.getMessage(), e);
+        List<Author> authors = new ArrayList<>();
+
+        try {
+            FindIterable<Document> authorDocuments = database.getCollection("authors").find();
+
+            for (Document doc : authorDocuments) {
+                int authorID = doc.getInteger("authorID");
+                String firstName = doc.getString("firstName");
+                String lastName = doc.getString("lastName");
+                Date birthDate = doc.getDate("birthDate");
+
+                Author author = new Author(authorID, firstName, lastName, birthDate);
+                authors.add(author);
             }
-            return authors;
+        } catch (MongoException e) {
+            throw new BooksDbException("Error retrieving authors from MongoDB: " + e.getMessage(), e);
+        }
+
+        return authors;
+    }
+    private Book documentToBook(Document doc) {
+        int bookId = doc.getInteger("bookId");
+        String isbn = doc.getString("isbn");
+        String bookTitle = doc.getString("title");
+        Date published = doc.getDate("published");
+        int rating = doc.getInteger("rating");
+        Genre genre = Genre.valueOf(doc.getString("genre").toUpperCase());
+
+        Book book = new Book(bookId, isbn, bookTitle, published, rating, genre);
+
+        // Assuming the document contains an array of author IDs
+        List<Integer> authorIDs = doc.getList("authorIDs", Integer.class);
+        if (authorIDs != null) {
+            for (int authorID : authorIDs) {
+                // Here you would fetch the author details based on the authorID
+                // This is a simplified example. In a real application, you might want to optimize this.
+                Author author = getAuthorById(authorID);
+                if (author != null) {
+                    book.addAuthors(author);
+                }
+            }
+        }
+
+        return book;
     }
     private Author documentToAuthor(Document doc) {
-        // Convert a MongoDB document to an Author object
-        // This is an example and might need adjustments based on your actual MongoDB document structure
         int authorID = doc.getInteger("authorID");
         String firstName = doc.getString("firstName");
         String lastName = doc.getString("lastName");
         Date birthDate = doc.getDate("birthDate");
 
+        // Create a new Author object
         Author author = new Author(authorID, firstName, lastName, birthDate);
-        // Add books and other necessary fields if required
+
         return author;
     }
-    private Book documentToBook(Document doc) {
-        // Convert a MongoDB document to a Book object
-        // This is an example and might need adjustments based on your actual MongoDB document structure
-        int bookId = doc.getInteger("bookId");
-        String isbn = doc.getString("isbn");
-        String title = doc.getString("title");
-        Date published = doc.getDate("published");
-        int rating = doc.getInteger("rating");
-        Genre genre = Genre.valueOf(doc.getString("genre")); // Assuming Genre is an enum
-
-        Book book = new Book(bookId, isbn, title, published, rating, genre);
-        // Handle authors and other necessary fields
-        return book;
+    private Author getAuthorById(int authorId) {
+        // Fetch the author document from the database
+        Document authorDoc = database.getCollection("authors").find(Filters.eq("authorID", authorId)).first();
+        if (authorDoc != null) {
+            return documentToAuthor(authorDoc);
+        }
+        return null;
     }
 }
+

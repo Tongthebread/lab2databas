@@ -26,7 +26,7 @@ public interface BooksDbInterface {
     public void connect(String database) throws BooksDbException;
     public void disconnect() throws BooksDbException;
     public List<Book> searchBooksByTitle(String title) throws BooksDbException;
-    ArrayList<Book> searchBooksByAuthor(String authorName) throws BooksDbException;
+    List<Book> searchBooksByAuthor(String authorName) throws BooksDbException;
     ArrayList<Book> searchBooksByGenre(String genre) throws BooksDbException;
     ArrayList<Book> searchBooksByRating(int rating) throws BooksDbException;
     ArrayList<Book> searchBooksByISBN(String ISBN) throws BooksDbException;
@@ -35,6 +35,8 @@ public interface BooksDbInterface {
     void addBook(Book book) throws BooksDbException;
     void addAuthor(Author author) throws BooksDbException;
     void addAuthorToBook(Author author, Book book) throws BooksDbException;
+
+
     List<Author> getAuthorsForBook(int bookID) throws BooksDbException;
     List<Author> getAllAuthors() throws BooksDbException;
 }
