@@ -7,7 +7,6 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import kth.decitong.librarydb.model.*;
@@ -351,7 +350,7 @@ public class BooksPane extends VBox {
 
 
         authorTable.getColumns().addAll(idCol, firstNameCol, lastNameCol, birthDateCol);
-        Controller.fetchAllAuthors(authorTable);
+        Controller.getAllAuthors(authorTable);
 
         return authorTable;
     }

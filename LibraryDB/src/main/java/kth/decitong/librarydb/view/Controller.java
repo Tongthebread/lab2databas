@@ -105,7 +105,7 @@ public class Controller {
     }
 
 
-    public static void fetchAllAuthors(TableView<Author> authorTable) {
+    public static void getAllAuthors(TableView<Author> authorTable) {
         new Thread(() -> {
             try {
                 System.out.print("fetching");
